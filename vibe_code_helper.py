@@ -763,18 +763,20 @@ class VibeCodeHelper:
             messagebox.showinfo("Success", "Your session has been successfully submitted to the leaderboard!")
 
         except urllib.error.HTTPError as e:
+            error_msg = f"Failed to submit to GitHub (HTTP {e.code}).\n"
             if e.code == 401:
-                messagebox.showerror("Error", "Invalid GitHub token. Please check your token and try again.")
+                error_msg += "Your GitHub token is invalid or expired.\nPlease generate a new token."
             elif e.code == 403:
-                messagebox.showerror("Error", "GitHub token doesn't have permission to modify the repository. Please ensure your token has 'repo' scope.")
-            elif e.code == 404:
-                messagebox.showerror("Error", "Repository or file not found. Please check the GitHub URL.")
+                error_msg += "Your token doesn't have permission to write to this repository.\nMake sure the token has 'repo' scope."
+            elif e.code == 409:
+                error_msg += "There was a conflict. Someone else may have updated the leaderboard.\nPlease try again."
             else:
-                messagebox.showerror("Error", f"GitHub API error: {e.code} - {e.reason}")
+                error_msg += f"Error: {e.read().decode('utf-8')}"
+            messagebox.showerror("Submission Failed", error_msg)
         except urllib.error.URLError as e:
-            messagebox.showerror("Error", f"Failed to connect to GitHub: {e}\n\nCheck your internet connection.")
+            messagebox.showerror("Network Error", f"Failed to connect to GitHub: {e}")
         except Exception as e:
-            messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+            messagebox.showerror("Error", f"Failed to submit to leaderboard: {e}")
 
     def _submit_to_github(self):
         """Open GitHub Issues with pre-filled leaderboard data."""
