@@ -123,10 +123,10 @@ class VibeCodeHelper:
         title.grid(row=0, column=0, columnspan=2, pady=(0, 12))
 
         # Check interval
-        interval_frame = ttk.LabelFrame(container, text="Check interval (milliseconds)", padding=12)
+        interval_frame = ttk.LabelFrame(container, text="Check interval (seconds)", padding=12)
         interval_frame.grid(row=1, column=0, columnspan=2, sticky="ew", **pad)
 
-        self.interval_var = tk.StringVar(value="1000")
+        self.interval_var = tk.StringVar(value="1.0")
         interval_entry = ttk.Entry(interval_frame, textvariable=self.interval_var, width=10, justify="center")
         interval_entry.pack()
 
@@ -271,12 +271,8 @@ class VibeCodeHelper:
                     self.accept_rate_history.append((elapsed, accepts_per_min))
                     last_update = current_time
 
-                slept = 0.0
-                interval_seconds = interval / 1000.0  # Convert milliseconds to seconds
-                while slept < interval_seconds and not self.stop_flag.is_set():
-                    step = min(0.05, interval_seconds - slept)
-                    time.sleep(step)
-                    slept += step
+                # Sleep for the interval (in seconds)
+                time.sleep(interval)
         except Exception:
             pass
         finally:
@@ -320,13 +316,17 @@ class VibeCodeHelper:
 
     def _update_stats(self):
         """Update click statistics display."""
-        if self.session_start_time:
+        if self.session_start_time and self.accept_count > 0:
             elapsed = time.time() - self.session_start_time
             if elapsed > 0:
                 clicks_per_min = (self.accept_count / elapsed) * 60
                 self.stats_var.set(f"Session: {self.accept_count} clicks | {clicks_per_min:.1f} clicks/min")
+            else:
+                self.stats_var.set(f"Session: {self.accept_count} clicks")
+        elif self.accept_count > 0:
+            self.stats_var.set(f"Session: {self.accept_count} clicks")
         else:
-            self.stats_var.set(f"Session: {self.accept_count} clicks | 0.0 clicks/min")
+            self.stats_var.set("Session: 0 clicks")
 
     def _save_settings(self):
         """Save current settings to a JSON file."""
@@ -405,7 +405,7 @@ class VibeCodeHelper:
         """Ask user for GitHub token with clickable link."""
         dialog = tk.Toplevel(self.root)
         dialog.title("GitHub Token")
-        dialog.geometry("500x400")
+        dialog.geometry("600x450")
         dialog.configure(bg=BG)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -418,7 +418,7 @@ class VibeCodeHelper:
                    "It does NOT give us access to your GitHub account or repos.\n"
                    "You create the token yourself, so you control it.\n\n"
                    "STEP 1: Click the link below\n"
-                   "STEP 2: Click 'Generate new token' (or 'Generate new token (classic)')\n"
+                   "STEP 2: Click 'Generate new token (classic)'\n"
                    "STEP 3: Type a name (like 'vibecode')\n"
                    "STEP 4: Check the box that says 'repo'\n"
                    "STEP 5: Click the green button\n"
@@ -433,11 +433,11 @@ class VibeCodeHelper:
         
         # Clickable link
         def open_link():
-            webbrowser.open("https://github.com/settings/tokens")
+            webbrowser.open("https://github.com/settings/tokens/new?scopes=repo")
         
         link_label = tk.Label(
             dialog,
-            text="https://github.com/settings/tokens",
+            text="https://github.com/settings/tokens/new?scopes=repo",
             fg=ACCENT,
             bg=BG,
             font=("Segoe UI", 10, "underline"),
@@ -468,7 +468,8 @@ class VibeCodeHelper:
             font=("Segoe UI", 10),
             bg=SURFACE,
             fg=FG,
-            insertbackground=FG
+            insertbackground=FG,
+            width=40
         )
         token_entry.pack(pady=10, padx=20, fill="x")
         token_entry.focus()
@@ -516,6 +517,9 @@ class VibeCodeHelper:
         x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
         y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
         dialog.geometry(f"+{x}+{y}")
+        
+        # Bind Enter key to OK
+        dialog.bind("<Return>", lambda e: on_ok())
         
         # Wait for dialog to close
         self.root.wait_window(dialog)

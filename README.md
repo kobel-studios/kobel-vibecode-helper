@@ -11,7 +11,6 @@ Automatically clicks "Accept All" for Vibe Coders coding on Windsurf.
 - Fail-safe protection (move mouse to screen corner to abort)
 - Tracks number of accepts performed
 - Mouse position restoration - returns cursor to original position after clicking
-- **Millisecond precision** for click intervals (competitive feature)
 - **Save/Load settings** - save your preferred configurations to JSON files
 - **Click statistics** - real-time session statistics including clicks per minute
 - **Global leaderboard** - compete with other users worldwide
@@ -43,7 +42,7 @@ Automatically clicks "Accept All" for Vibe Coders coding on Windsurf.
 2. On first launch, you'll be asked if you want to participate in the global leaderboard
 3. If yes, enter a unique username and optionally provide a GitHub token for automatic submission
 4. Press **F7** or click the button to start/stop the automation
-5. Adjust the check interval (in milliseconds) as needed
+5. Adjust the check interval (in seconds) as needed
 6. Use "Save Settings" to save your configuration to a JSON file
 7. Use "Load Settings" to load a previously saved configuration
 8. Monitor real-time statistics including clicks per minute
