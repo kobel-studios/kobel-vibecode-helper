@@ -355,24 +355,22 @@ class VibeCodeHelper:
             self.stats_var.set("Session: 0 clicks")
 
     def _save_settings(self):
-        """Save current settings to a JSON file."""
+        """Save current settings to a JSON file with auto-generated name."""
         settings = {
             "interval": self.interval_var.get()
         }
         
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
-            title="Save Settings"
-        )
+        # Auto-generate filename with timestamp
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_path = f"settings_{timestamp}.json"
         
-        if file_path:
-            try:
-                with open(file_path, "w") as f:
-                    json.dump(settings, f, indent=4)
-                messagebox.showinfo("Success", "Settings saved successfully!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to save settings: {e}")
+        try:
+            with open(file_path, "w") as f:
+                json.dump(settings, f, indent=4)
+            messagebox.showinfo("Success", f"Settings saved to {file_path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save settings: {e}")
 
     def _load_settings(self):
         """Load settings from a JSON file - show hub of all saved settings."""
