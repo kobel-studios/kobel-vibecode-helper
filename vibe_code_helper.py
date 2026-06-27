@@ -49,11 +49,11 @@ class VibeCodeHelper:
         self.root.resizable(False, False)
         self.root.attributes("-topmost", True)
         
-        # Position window on the right side of the screen
+        # Position window on the right side of the screen (but not too far right)
         self.root.update_idletasks()
         screen_width = self.root.winfo_screenwidth()
         window_width = self.root.winfo_reqwidth()
-        x_position = screen_width - window_width - 20
+        x_position = screen_width - window_width - 100  # More padding from right edge
         self.root.geometry(f"+{x_position}+20")
 
         self.running = False
@@ -308,7 +308,7 @@ class VibeCodeHelper:
         """Try to find and click the 'Accept All' button using image recognition."""
         
         try:
-            button_location = pyautogui.locateOnScreen(ACCEPT_BUTTON_IMAGE, confidence=0.8)
+            button_location = pyautogui.locateOnScreen(ACCEPT_BUTTON_IMAGE, confidence=0.9)  # Increased confidence to reduce false positives
             if button_location:
                 button_center = pyautogui.center(button_location)
                 
