@@ -188,6 +188,7 @@ class VibeCodeHelper:
         settings_frame.grid(row=9, column=0, columnspan=2, pady=(6, 0))
         
         ttk.Button(settings_frame, text="Test Accept", command=self._test_accept, width=12).pack(side="left", padx=2)
+        ttk.Button(settings_frame, text="View Graph", command=self._view_graph, width=12).pack(side="left", padx=2)
 
         hint = ttk.Label(
             container,
@@ -198,12 +199,11 @@ class VibeCodeHelper:
         )
         hint.grid(row=10, column=0, columnspan=2, pady=(8, 0))
         
-        # Leaderboard and tools buttons
-        tools_frame = ttk.Frame(container)
-        tools_frame.grid(row=11, column=0, columnspan=2, pady=(6, 0))
+        # Leaderboard button (on bottom)
+        leaderboard_frame = ttk.Frame(container)
+        leaderboard_frame.grid(row=11, column=0, columnspan=2, pady=(6, 0))
         
-        ttk.Button(tools_frame, text="Leaderboard", command=self._view_leaderboard, width=12).pack(side="left", padx=2)
-        ttk.Button(tools_frame, text="View Graph", command=self._view_graph, width=12).pack(side="left", padx=2)
+        ttk.Button(leaderboard_frame, text="Leaderboard", command=self._view_leaderboard, width=12).pack()
 
     def _on_background_click(self, event):
         """Remove focus from text boxes when clicking on window background."""
@@ -375,23 +375,90 @@ class VibeCodeHelper:
                 messagebox.showerror("Error", f"Failed to save settings: {e}")
 
     def _load_settings(self):
-        """Load settings from a JSON file."""
-        file_path = filedialog.askopenfilename(
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
-            title="Load Settings"
+        """Load settings from a JSON file - show hub of all saved settings."""
+        # Find all JSON files in current directory
+        import glob
+        json_files = glob.glob("*.json")
+        
+        # Filter out config files (vibecode_config.json, vibecode_data.json)
+        settings_files = [f for f in json_files if not f.startswith("vibecode_")]
+        
+        if not settings_files:
+            messagebox.showinfo("No Settings", "No saved settings files found.")
+            return
+        
+        # Create settings hub window
+        hub_window = tk.Toplevel(self.root)
+        hub_window.title("Settings Hub")
+        hub_window.geometry("400x500")
+        hub_window.configure(bg=BG)
+        hub_window.transient(self.root)
+        
+        # Title
+        title = tk.Label(
+            hub_window,
+            text="Saved Settings",
+            fg=FG,
+            bg=BG,
+            font=("Segoe UI", 14, "bold")
+        )
+        title.pack(pady=20)
+        
+        # Create scrollable frame for settings
+        canvas = tk.Canvas(hub_window, bg=BG, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(hub_window, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
         
-        if file_path:
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True, padx=20, pady=10)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Add each settings file as a button
+        for file in settings_files:
             try:
-                with open(file_path, "r") as f:
-                    settings = json.load(f)
-                
-                if "interval" in settings:
-                    self.interval_var.set(settings["interval"])
-                
-                messagebox.showinfo("Success", "Settings loaded successfully!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to load settings: {e}")
+                with open(file, "r") as f:
+                    data = json.load(f)
+                    interval = data.get("interval", "Unknown")
+                    
+                # Create button for this setting
+                btn = tk.Button(
+                    scrollable_frame,
+                    text=f"{file}\nInterval: {interval}s",
+                    bg=SURFACE,
+                    fg=FG,
+                    font=("Segoe UI", 10),
+                    relief="flat",
+                    padx=10,
+                    pady=5,
+                    cursor="hand2",
+                    command=lambda f=file, i=interval: self._apply_settings(f, i, hub_window)
+                )
+                btn.pack(fill="x", pady=5, padx=10)
+            except Exception:
+                # Skip invalid files
+                pass
+        
+        # Close button
+        ttk.Button(hub_window, text="Close", command=hub_window.destroy).pack(pady=10)
+        
+        # Center window
+        hub_window.update_idletasks()
+        x = (hub_window.winfo_screenwidth() // 2) - (hub_window.winfo_width() // 2)
+        y = (hub_window.winfo_screenheight() // 2) - (hub_window.winfo_height() // 2)
+        hub_window.geometry(f"+{x}+{y}")
+
+    def _apply_settings(self, file_path, interval, window):
+        """Apply the selected settings and close the hub."""
+        self.interval_var.set(str(interval))
+        window.destroy()
+        messagebox.showinfo("Success", f"Loaded settings from {file_path}")
 
     def on_close(self):
         self.stop_running()
