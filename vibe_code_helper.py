@@ -81,6 +81,9 @@ class VibeCodeHelper:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         # Bind click handler to entire window to remove focus from text boxes
         self.root.bind("<Button-1>", self._on_background_click)
+        
+        # Auto-start on launch
+        self.root.after(500, self.start_running)
 
     def _apply_dark_theme(self):
         self.root.configure(bg=BG)
@@ -126,7 +129,7 @@ class VibeCodeHelper:
         interval_frame = ttk.LabelFrame(container, text="Check interval (seconds)", padding=12)
         interval_frame.grid(row=1, column=0, columnspan=2, sticky="ew", **pad)
 
-        self.interval_var = tk.StringVar(value="1.0")
+        self.interval_var = tk.StringVar(value="1")
         interval_entry = ttk.Entry(interval_frame, textvariable=self.interval_var, width=10, justify="center")
         interval_entry.pack()
 
@@ -141,9 +144,11 @@ class VibeCodeHelper:
         self.count_var = tk.StringVar(value="Accepts performed: 0")
         ttk.Label(container, textvariable=self.count_var, foreground=MUTED).grid(row=3, column=0, columnspan=2, pady=(0, 4))
         
-        # Statistics
-        self.stats_var = tk.StringVar(value="Session: 0 clicks | 0.0 clicks/min")
-        ttk.Label(container, textvariable=self.stats_var, foreground=MUTED, font=("Segoe UI", 9)).grid(row=4, column=0, columnspan=2, pady=(0, 8))
+        # Statistics (only visible when running)
+        self.stats_var = tk.StringVar(value="")
+        self.stats_label = ttk.Label(container, textvariable=self.stats_var, foreground=MUTED, font=("Segoe UI", 9))
+        self.stats_label.grid(row=4, column=0, columnspan=2, pady=(0, 8))
+        self.stats_label.grid_remove()  # Hide initially
 
         # Setup instructions
         setup_frame = ttk.LabelFrame(container, text="Setup Instructions", padding=12)
@@ -231,17 +236,20 @@ class VibeCodeHelper:
         self.stop_flag.clear()
         self.accept_count = 0
         self.session_start_time = time.time()
+        self.accept_rate_history.clear()
         self.worker = threading.Thread(target=self._accept_loop, args=(interval,), daemon=True)
         self.worker.start()
 
         self.toggle_button.config(text="Stop (F7)")
         self._set_status("Running...", CLICKING_COLOR)
+        self.stats_label.grid()  # Show stats when running
 
     def stop_running(self):
         self.stop_flag.set()
         self.running = False
         self.toggle_button.config(text="Start (F7)")
         self._set_status("Stopped", STOPPED_COLOR)
+        self.stats_label.grid_remove()  # Hide stats when stopped
         # Ask if user wants to submit to leaderboard
         if self.participate_leaderboard and self.accept_count > 0:
             self._prompt_submit_leaderboard()
