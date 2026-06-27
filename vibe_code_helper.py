@@ -39,7 +39,7 @@ STOPPED_COLOR = "#e3b341"
 ACCEPT_BUTTON_IMAGE = "accept_all_button.png"
 DATA_FILE = "vibecode_data.json"
 CONFIG_FILE = "vibecode_config.json"
-LEADERBOARD_GITHUB_URL = "https://raw.githubusercontent.com/kobel-studios/Kobel-vibecode-helper/main/leaderboard_data.json"
+LEADERBOARD_GITHUB_URL = "https://api.github.com/repos/kobel-studios/Kobel-vibecode-helper/contents/leaderboard_data.json"
 
 
 class VibeCodeHelper:
@@ -575,9 +575,19 @@ class VibeCodeHelper:
     def _username_exists(self, username):
         """Check if username already exists in the leaderboard."""
         try:
-            # Fetch current data from GitHub
+            # Fetch current data from GitHub API
             response = urllib.request.urlopen(LEADERBOARD_GITHUB_URL)
-            data = json.loads(response.read().decode('utf-8'))
+            file_data = json.loads(response.read().decode('utf-8'))
+            
+            # Decode base64 content
+            import base64
+            content = file_data.get("content", "")
+            if content:
+                decoded_content = base64.b64decode(content).decode('utf-8')
+                data = json.loads(decoded_content)
+            else:
+                data = {"sessions": []}
+            
             sessions = data.get("sessions", [])
             
             # Check if any session has this username
@@ -680,13 +690,22 @@ class VibeCodeHelper:
             # Get the most recent session
             latest_session = local_sessions[-1]
 
-            # Fetch current data from GitHub
+            # Fetch current data from GitHub API
             request = urllib.request.Request(
                 LEADERBOARD_GITHUB_URL,
                 headers={"Authorization": f"token {self.github_token}"}
             )
             response = urllib.request.urlopen(request)
-            remote_data = json.loads(response.read().decode('utf-8'))
+            file_data = json.loads(response.read().decode('utf-8'))
+            
+            # Decode base64 content
+            content = file_data.get("content", "")
+            if content:
+                decoded_content = base64.b64decode(content).decode('utf-8')
+                remote_data = json.loads(decoded_content)
+            else:
+                remote_data = {"sessions": []}
+            
             remote_sessions = remote_data.get("sessions", [])
 
             # Check if session already exists (by timestamp)
@@ -785,9 +804,18 @@ Please add this session to the leaderboard_data.json file."""
     def _view_leaderboard(self):
         """Display the leaderboard in a new window."""
         try:
-            # Fetch leaderboard data from GitHub
+            # Fetch leaderboard data from GitHub API
             response = urllib.request.urlopen(LEADERBOARD_GITHUB_URL)
-            data = json.loads(response.read().decode('utf-8'))
+            file_data = json.loads(response.read().decode('utf-8'))
+            
+            # Decode base64 content
+            content = file_data.get("content", "")
+            if content:
+                decoded_content = base64.b64decode(content).decode('utf-8')
+                data = json.loads(decoded_content)
+            else:
+                data = {"sessions": []}
+            
             sessions = data.get("sessions", [])
             
             if not sessions:
