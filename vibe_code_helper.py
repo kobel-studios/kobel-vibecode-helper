@@ -939,10 +939,10 @@ Please add this session to the leaderboard_data.json file."""
         graph_window.geometry(f"+{x}+{y}")
 
     def _test_accept(self):
-        """Open a test window with an Accept All button to test the clicker."""
+        """Open a test window to test if the clicker can find the Accept All button."""
         test_window = tk.Toplevel(self.root)
         test_window.title("Accept Button Tester")
-        test_window.geometry("400x300")
+        test_window.geometry("500x400")
         test_window.configure(bg=BG)
         test_window.transient(self.root)
         
@@ -968,7 +968,9 @@ Please add this session to the leaderboard_data.json file."""
         # Instructions
         instructions = tk.Label(
             test_window,
-            text="Click the Accept All button below to test\nif the clicker is working properly.\n\nNote: Test clicks do NOT count towards your stats.",
+            text="This will test if the clicker can find your Accept All button image.\n\n"
+                   "Make sure your Accept All button is visible on screen,\n"
+                   "then click 'Test Detection' below.",
             fg=MUTED,
             bg=BG,
             font=("Segoe UI", 10),
@@ -976,10 +978,30 @@ Please add this session to the leaderboard_data.json file."""
         )
         instructions.pack(pady=10)
         
-        # Accept All button (styled to look like Windsurf's button)
-        accept_button = tk.Button(
+        # Show the reference image
+        try:
+            from PIL import Image, ImageTk
+            if os.path.exists(ACCEPT_BUTTON_IMAGE):
+                pil_image = Image.open(ACCEPT_BUTTON_IMAGE)
+                pil_image = pil_image.resize((200, 50), Image.Resampling.LANCZOS)
+                tk_image = ImageTk.PhotoImage(pil_image)
+                image_label = tk.Label(test_window, image=tk_image, bg=BG)
+                image_label.image = tk_image  # Keep reference
+                image_label.pack(pady=10)
+                
+                ref_label = tk.Label(test_window, text="Reference image:", fg=MUTED, bg=BG, font=("Segoe UI", 9))
+                ref_label.pack()
+            else:
+                error_label = tk.Label(test_window, text=f"❌ {ACCEPT_BUTTON_IMAGE} not found!", fg="#e74c3c", bg=BG)
+                error_label.pack(pady=10)
+        except Exception as e:
+            error_label = tk.Label(test_window, text=f"❌ Error loading image: {e}", fg="#e74c3c", bg=BG)
+            error_label.pack(pady=10)
+        
+        # Test button
+        test_button = tk.Button(
             test_window,
-            text="Accept All",
+            text="Test Detection",
             bg=ACCENT,
             fg="white",
             font=("Segoe UI", 12, "bold"),
@@ -987,20 +1009,19 @@ Please add this session to the leaderboard_data.json file."""
             padx=30,
             pady=10,
             cursor="hand2",
-            command=lambda: self._on_test_accept_click(test_window)
+            command=lambda: self._run_detection_test(test_window)
         )
-        accept_button.pack(pady=20)
+        test_button.pack(pady=20)
         
-        # Click counter
-        test_window.test_clicks = 0
-        test_window.clicks_label = tk.Label(
+        # Result label
+        test_window.result_label = tk.Label(
             test_window,
-            text="Clicks detected: 0",
-            fg=ACCENT,
+            text="Click 'Test Detection' to begin",
+            fg=MUTED,
             bg=BG,
-            font=("Segoe UI", 12, "bold")
+            font=("Segoe UI", 10)
         )
-        test_window.clicks_label.pack(pady=10)
+        test_window.result_label.pack(pady=10)
         
         # Close button
         ttk.Button(test_window, text="Close", command=test_window.destroy).pack(pady=10)
@@ -1011,10 +1032,27 @@ Please add this session to the leaderboard_data.json file."""
         y = (test_window.winfo_screenheight() // 2) - (test_window.winfo_height() // 2)
         test_window.geometry(f"+{x}+{y}")
 
-    def _on_test_accept_click(self, window):
-        """Handle test button click."""
-        window.test_clicks += 1
-        window.clicks_label.config(text=f"Clicks detected: {window.test_clicks}")
+    def _run_detection_test(self, window):
+        """Actually test if the Accept All button can be found on screen."""
+        if not os.path.exists(ACCEPT_BUTTON_IMAGE):
+            window.result_label.config(text="❌ Image file not found!", fg="#e74c3c")
+            return
+        
+        try:
+            # Try to locate the button on screen
+            found = pyautogui.locateOnScreen(ACCEPT_BUTTON_IMAGE, confidence=0.8)
+            
+            if found:
+                window.result_label.config(text="✓ Accept All button found on screen!", fg="#3fb950")
+                # Optionally show coordinates
+                left, top, width, height = found
+                window.result_label.config(text=f"✓ Found at ({left}, {top}) size {width}x{height}", fg="#3fb950")
+            else:
+                window.result_label.config(text="✗ Accept All button not found on screen", fg="#e3b341")
+                window.result_label.config(text="✗ Not found - make sure button is visible", fg="#e3b341")
+                
+        except Exception as e:
+            window.result_label.config(text=f"❌ Error: {str(e)}", fg="#e74c3c")
 
 
 def main():
