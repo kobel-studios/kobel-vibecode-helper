@@ -84,9 +84,6 @@ class VibeCodeHelper:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         # Bind click handler to entire window to remove focus from text boxes
         self.root.bind("<Button-1>", self._on_background_click)
-        
-        # Auto-start on launch
-        self.root.after(500, self.start_running)
 
     def _apply_dark_theme(self):
         self.root.configure(bg=BG)
