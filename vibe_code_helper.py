@@ -73,6 +73,7 @@ class VibeCodeHelper:
         self.username = None
         self.participate_leaderboard = False
         self.github_token = None
+        self.prompt_submit = True  # Whether to prompt for submission after session
         
         # Load user configuration
         self._load_config()
@@ -188,6 +189,7 @@ class VibeCodeHelper:
         
         ttk.Button(tools_frame, text="Leaderboard", command=self._view_leaderboard, width=12).pack(side="left", padx=2)
         ttk.Button(tools_frame, text="View Graph", command=self._view_graph, width=12).pack(side="left", padx=2)
+        ttk.Button(tools_frame, text="Submit", command=self._prompt_submit_leaderboard, width=12).pack(side="left", padx=2)
 
     def _on_background_click(self, event):
         """Remove focus from text boxes when clicking on window background."""
@@ -250,9 +252,6 @@ class VibeCodeHelper:
         self.toggle_button.config(text="Start (F7)")
         self._set_status("Stopped", STOPPED_COLOR)
         self.stats_label.grid_remove()  # Hide stats when stopped
-        # Ask if user wants to submit to leaderboard
-        if self.participate_leaderboard and self.accept_count > 0:
-            self._prompt_submit_leaderboard()
 
     def _accept_loop(self, interval):
         try:
@@ -395,6 +394,7 @@ class VibeCodeHelper:
                     self.username = config.get("username")
                     self.participate_leaderboard = config.get("participate_leaderboard", False)
                     self.github_token = config.get("github_token")
+                    self.prompt_submit = config.get("prompt_submit", True)
             except Exception:
                 pass
 
@@ -406,7 +406,8 @@ class VibeCodeHelper:
         config = {
             "username": self.username,
             "participate_leaderboard": self.participate_leaderboard,
-            "github_token": self.github_token
+            "github_token": self.github_token,
+            "prompt_submit": self.prompt_submit
         }
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
