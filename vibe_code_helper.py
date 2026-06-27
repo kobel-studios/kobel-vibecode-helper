@@ -66,6 +66,9 @@ class VibeCodeHelper:
         # Graph data
         self.accept_rate_history = deque(maxlen=60)  # Store last 60 data points
         
+        # Test mode flag
+        self.test_mode = False
+        
         # Leaderboard configuration
         self.username = None
         self.participate_leaderboard = False
@@ -259,21 +262,23 @@ class VibeCodeHelper:
             last_update = time.time()
             while not self.stop_flag.is_set():
                 if self._click_accept_all():
-                    self.accept_count += 1
-                    self.total_clicks += 1
-                    self.root.after(0, self._update_count, self.accept_count)
-                    self.root.after(0, self._update_stats)
+                    # Only count if not in test mode
+                    if not self.test_mode:
+                        self.accept_count += 1
+                        self.total_clicks += 1
+                        self.root.after(0, self._update_count, self.accept_count)
+                        self.root.after(0, self._update_stats)
                     
-                    # Record for graph
+                    # Record for graph (only if not test mode)
                     current_time = time.time()
-                    if self.session_start_time:
+                    if self.session_start_time and not self.test_mode:
                         elapsed = current_time - self.session_start_time
                         accepts_per_min = (self.accept_count / elapsed) * 60 if elapsed > 0 else 0
                         self.accept_rate_history.append((elapsed, accepts_per_min))
 
-                # Update graph every second
+                # Update graph every second (only if not test mode)
                 current_time = time.time()
-                if current_time - last_update >= 1.0 and self.session_start_time:
+                if current_time - last_update >= 1.0 and self.session_start_time and not self.test_mode:
                     elapsed = current_time - self.session_start_time
                     accepts_per_min = (self.accept_count / elapsed) * 60 if elapsed > 0 else 0
                     self.accept_rate_history.append((elapsed, accepts_per_min))
@@ -286,7 +291,7 @@ class VibeCodeHelper:
         finally:
             self.root.after(0, self._on_loop_done)
 
-    def _click_accept_all(self):
+    def _click_accept_all(self, is_test=False):
         """Try to find and click the 'Accept All' button using image recognition."""
         
         try:
@@ -413,7 +418,7 @@ class VibeCodeHelper:
         """Ask user for GitHub token with clickable link."""
         dialog = tk.Toplevel(self.root)
         dialog.title("GitHub Token")
-        dialog.geometry("600x450")
+        dialog.geometry("600x500")
         dialog.configure(bg=BG)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -944,6 +949,15 @@ Please add this session to the leaderboard_data.json file."""
         test_window.configure(bg=BG)
         test_window.transient(self.root)
         
+        # Enable test mode (clicks won't count)
+        self.test_mode = True
+        
+        def on_close():
+            self.test_mode = False
+            test_window.destroy()
+        
+        test_window.protocol("WM_DELETE_WINDOW", on_close)
+        
         # Title
         title = tk.Label(
             test_window,
@@ -957,7 +971,7 @@ Please add this session to the leaderboard_data.json file."""
         # Instructions
         instructions = tk.Label(
             test_window,
-            text="Click the Accept All button below to test\nif the clicker is working properly.",
+            text="Click the Accept All button below to test\nif the clicker is working properly.\n\nNote: Test clicks do NOT count towards your stats.",
             fg=MUTED,
             bg=BG,
             font=("Segoe UI", 10),
