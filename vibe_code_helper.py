@@ -1,10 +1,16 @@
 import time
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 import pyautogui
 import keyboard
 import os
+import json
+import urllib.request
+import urllib.error
+import webbrowser
+import base64
+from datetime import datetime
 from PIL import Image, ImageTk
 
 pyautogui.FAILSAFE = True
@@ -25,6 +31,9 @@ CLICKING_COLOR = "#3fb950"
 STOPPED_COLOR = "#e3b341"
 
 ACCEPT_BUTTON_IMAGE = "accept_all_button.png"
+DATA_FILE = "vibecode_data.json"
+CONFIG_FILE = "vibecode_config.json"
+LEADERBOARD_GITHUB_URL = "https://raw.githubusercontent.com/kobel-studios/Kobel-vibecode-helper/main/leaderboard_data.json"
 
 
 class VibeCodeHelper:
@@ -45,6 +54,16 @@ class VibeCodeHelper:
         self.stop_flag = threading.Event()
         self.worker = None
         self.accept_count = 0
+        self.session_start_time = None
+        self.total_clicks = 0
+        
+        # Leaderboard configuration
+        self.username = None
+        self.participate_leaderboard = False
+        self.github_token = None
+        
+        # Load user configuration
+        self._load_config()
 
         self._apply_dark_theme()
         self._build_ui()
@@ -95,10 +114,10 @@ class VibeCodeHelper:
         title.grid(row=0, column=0, columnspan=2, pady=(0, 12))
 
         # Check interval
-        interval_frame = ttk.LabelFrame(container, text="Check interval (seconds)", padding=12)
+        interval_frame = ttk.LabelFrame(container, text="Check interval (milliseconds)", padding=12)
         interval_frame.grid(row=1, column=0, columnspan=2, sticky="ew", **pad)
 
-        self.interval_var = tk.StringVar(value="1")
+        self.interval_var = tk.StringVar(value="1000")
         interval_entry = ttk.Entry(interval_frame, textvariable=self.interval_var, width=10, justify="center")
         interval_entry.pack()
 
@@ -111,11 +130,15 @@ class VibeCodeHelper:
 
         # Count
         self.count_var = tk.StringVar(value="Accepts performed: 0")
-        ttk.Label(container, textvariable=self.count_var, foreground=MUTED).grid(row=3, column=0, columnspan=2, pady=(0, 8))
+        ttk.Label(container, textvariable=self.count_var, foreground=MUTED).grid(row=3, column=0, columnspan=2, pady=(0, 4))
+        
+        # Statistics
+        self.stats_var = tk.StringVar(value="Session: 0 clicks | 0.0 clicks/min")
+        ttk.Label(container, textvariable=self.stats_var, foreground=MUTED, font=("Segoe UI", 9)).grid(row=4, column=0, columnspan=2, pady=(0, 8))
 
         # Setup instructions
         setup_frame = ttk.LabelFrame(container, text="Setup Instructions", padding=12)
-        setup_frame.grid(row=4, column=0, columnspan=2, sticky="ew", **pad)
+        setup_frame.grid(row=5, column=0, columnspan=2, sticky="ew", **pad)
 
         setup_text = (
             "• Place accept_all_button.png in this folder\n"
@@ -126,7 +149,14 @@ class VibeCodeHelper:
 
         # Controls
         self.toggle_button = ttk.Button(container, text="Start (F7)", command=self._toggle)
-        self.toggle_button.grid(row=5, column=0, columnspan=2, sticky="ew", padx=6, pady=(6, 2))
+        self.toggle_button.grid(row=6, column=0, columnspan=2, sticky="ew", padx=6, pady=(6, 2))
+
+        # Settings buttons
+        settings_frame = ttk.Frame(container)
+        settings_frame.grid(row=7, column=0, columnspan=2, pady=(6, 0))
+        
+        ttk.Button(settings_frame, text="Save Settings", command=self._save_settings, width=12).pack(side="left", padx=2)
+        ttk.Button(settings_frame, text="Load Settings", command=self._load_settings, width=12).pack(side="left", padx=2)
 
         hint = ttk.Label(
             container,
@@ -135,7 +165,10 @@ class VibeCodeHelper:
             foreground=MUTED,
             justify="center",
         )
-        hint.grid(row=6, column=0, columnspan=2, pady=(8, 0))
+        hint.grid(row=8, column=0, columnspan=2, pady=(8, 0))
+        
+        # Leaderboard button
+        ttk.Button(container, text="View Leaderboard", command=self._view_leaderboard).grid(row=9, column=0, columnspan=2, pady=(6, 0))
 
     def _on_background_click(self, event):
         """Remove focus from text boxes when clicking on window background."""
@@ -183,6 +216,7 @@ class VibeCodeHelper:
         self.running = True
         self.stop_flag.clear()
         self.accept_count = 0
+        self.session_start_time = time.time()
         self.worker = threading.Thread(target=self._accept_loop, args=(interval,), daemon=True)
         self.worker.start()
 
@@ -194,17 +228,23 @@ class VibeCodeHelper:
         self.running = False
         self.toggle_button.config(text="Start (F7)")
         self._set_status("Stopped", STOPPED_COLOR)
+        # Ask if user wants to submit to leaderboard
+        if self.participate_leaderboard and self.accept_count > 0:
+            self._prompt_submit_leaderboard()
 
     def _accept_loop(self, interval):
         try:
             while not self.stop_flag.is_set():
                 if self._click_accept_all():
                     self.accept_count += 1
+                    self.total_clicks += 1
                     self.root.after(0, self._update_count, self.accept_count)
+                    self.root.after(0, self._update_stats)
 
                 slept = 0.0
-                while slept < interval and not self.stop_flag.is_set():
-                    step = min(0.05, interval - slept)
+                interval_seconds = interval / 1000.0  # Convert milliseconds to seconds
+                while slept < interval_seconds and not self.stop_flag.is_set():
+                    step = min(0.05, interval_seconds - slept)
                     time.sleep(step)
                     slept += step
         except Exception:
@@ -248,9 +288,538 @@ class VibeCodeHelper:
     def _update_count(self, count):
         self.count_var.set(f"Accepts performed: {count}")
 
+    def _update_stats(self):
+        """Update click statistics display."""
+        if self.session_start_time:
+            elapsed = time.time() - self.session_start_time
+            if elapsed > 0:
+                clicks_per_min = (self.accept_count / elapsed) * 60
+                self.stats_var.set(f"Session: {self.accept_count} clicks | {clicks_per_min:.1f} clicks/min")
+        else:
+            self.stats_var.set(f"Session: {self.accept_count} clicks | 0.0 clicks/min")
+
+    def _save_settings(self):
+        """Save current settings to a JSON file."""
+        settings = {
+            "interval": self.interval_var.get()
+        }
+        
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Save Settings"
+        )
+        
+        if file_path:
+            try:
+                with open(file_path, "w") as f:
+                    json.dump(settings, f, indent=4)
+                messagebox.showinfo("Success", "Settings saved successfully!")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save settings: {e}")
+
+    def _load_settings(self):
+        """Load settings from a JSON file."""
+        file_path = filedialog.askopenfilename(
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Load Settings"
+        )
+        
+        if file_path:
+            try:
+                with open(file_path, "r") as f:
+                    settings = json.load(f)
+                
+                if "interval" in settings:
+                    self.interval_var.set(settings["interval"])
+                
+                messagebox.showinfo("Success", "Settings loaded successfully!")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to load settings: {e}")
+
     def on_close(self):
         self.stop_running()
         self.root.destroy()
+
+    # ---------- Leaderboard System ----------
+    def _load_config(self):
+        """Load user configuration or prompt for username on first launch."""
+        self.username = None
+        self.participate_leaderboard = False
+        self.github_token = None
+
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                    self.username = config.get("username")
+                    self.participate_leaderboard = config.get("participate_leaderboard", False)
+                    self.github_token = config.get("github_token")
+            except Exception:
+                pass
+
+        if not self.username or not self.participate_leaderboard:
+            self._prompt_username()
+
+    def _save_config(self):
+        """Save user configuration to file."""
+        config = {
+            "username": self.username,
+            "participate_leaderboard": self.participate_leaderboard,
+            "github_token": self.github_token
+        }
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+
+    def _ask_github_token(self):
+        """Ask user for GitHub token with clickable link."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("GitHub Token")
+        dialog.geometry("500x400")
+        dialog.configure(bg=BG)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Instructions
+        instructions = tk.Label(
+            dialog,
+            text="WHAT THIS DOES:\n"
+                   "This lets the app add your score to the leaderboard automatically.\n"
+                   "It does NOT give us access to your GitHub account or repos.\n"
+                   "You create the token yourself, so you control it.\n\n"
+                   "STEP 1: Click the link below\n"
+                   "STEP 2: Click 'Generate new token' (or 'Generate new token (classic)')\n"
+                   "STEP 3: Type a name (like 'vibecode')\n"
+                   "STEP 4: Check the box that says 'repo'\n"
+                   "STEP 5: Click the green button\n"
+                   "STEP 6: Copy the code it shows you\n"
+                   "STEP 7: Paste it in the box below",
+            fg=FG,
+            bg=BG,
+            font=("Segoe UI", 10),
+            justify="left"
+        )
+        instructions.pack(pady=20, padx=20)
+        
+        # Clickable link
+        def open_link():
+            webbrowser.open("https://github.com/settings/tokens")
+        
+        link_label = tk.Label(
+            dialog,
+            text="https://github.com/settings/tokens",
+            fg=ACCENT,
+            bg=BG,
+            font=("Segoe UI", 10, "underline"),
+            cursor="hand2"
+        )
+        link_label.pack(pady=5)
+        link_label.bind("<Button-1>", lambda e: open_link())
+        
+        # Safety note
+        safety_note = tk.Label(
+            dialog,
+            text="This is NOT your GitHub password. It's a special code you create.\n"
+                   "You can delete it anytime from GitHub settings.\n\n"
+                   "(Leave empty to use manual submission instead)",
+            fg=MUTED,
+            bg=BG,
+            font=("Segoe UI", 9),
+            justify="left"
+        )
+        safety_note.pack(pady=10, padx=20)
+        
+        # Token input
+        token_var = tk.StringVar()
+        token_entry = tk.Entry(
+            dialog,
+            textvariable=token_var,
+            show="*",
+            font=("Segoe UI", 10),
+            bg=SURFACE,
+            fg=FG,
+            insertbackground=FG
+        )
+        token_entry.pack(pady=10, padx=20, fill="x")
+        token_entry.focus()
+        
+        # Buttons
+        button_frame = tk.Frame(dialog, bg=BG)
+        button_frame.pack(pady=20)
+        
+        result = [None]
+        
+        def on_ok():
+            result[0] = token_var.get()
+            dialog.destroy()
+        
+        def on_cancel():
+            result[0] = ""
+            dialog.destroy()
+        
+        ok_button = tk.Button(
+            button_frame,
+            text="OK",
+            command=on_ok,
+            bg=ACCENT,
+            fg="white",
+            font=("Segoe UI", 10),
+            relief="flat",
+            padx=20
+        )
+        ok_button.pack(side="left", padx=5)
+        
+        cancel_button = tk.Button(
+            button_frame,
+            text="Cancel",
+            command=on_cancel,
+            bg=SURFACE,
+            fg=FG,
+            font=("Segoe UI", 10),
+            relief="flat",
+            padx=20
+        )
+        cancel_button.pack(side="left", padx=5)
+        
+        # Center dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
+        y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Wait for dialog to close
+        self.root.wait_window(dialog)
+        
+        return result[0]
+
+    def _prompt_username(self):
+        """Prompt user for leaderboard participation and username."""
+        result = messagebox.askyesno(
+            "Leaderboard",
+            "Do you want to participate in the global leaderboard?\n\n"
+            "Your accepts will be tracked and compared with other users."
+        )
+
+        if result:
+            # Ask for username (loop until unique or cancelled)
+            while True:
+                username = simpledialog.askstring(
+                    "Username",
+                    "Enter your username for the leaderboard:",
+                    parent=self.root
+                )
+                
+                if not username or not username.strip():
+                    # User cancelled or entered empty username
+                    self.participate_leaderboard = False
+                    self._save_config()
+                    return
+                
+                username = username.strip()
+                
+                # Check if username already exists in leaderboard
+                if self._username_exists(username):
+                    messagebox.showerror(
+                        "Username Taken",
+                        f"The username '{username}' is already taken. Please choose a different username."
+                    )
+                    continue
+                
+                # Username is unique
+                self.username = username
+                self.participate_leaderboard = True
+                # Ask for GitHub token for automatic submission
+                token = self._ask_github_token()
+                self.github_token = token.strip() if token else None
+                self._save_config()
+                if self.github_token:
+                    messagebox.showinfo("Welcome", f"Welcome, {self.username}! Your sessions will be automatically submitted to the leaderboard.")
+                else:
+                    messagebox.showinfo("Welcome", f"Welcome, {self.username}! Your sessions will be saved to the leaderboard (manual submission via GitHub Issues).")
+                break
+        else:
+            # User declined participation
+            self.participate_leaderboard = False
+            self._save_config()
+
+    def _username_exists(self, username):
+        """Check if username already exists in the leaderboard."""
+        try:
+            # Fetch current data from GitHub
+            response = urllib.request.urlopen(LEADERBOARD_GITHUB_URL)
+            data = json.loads(response.read().decode('utf-8'))
+            sessions = data.get("sessions", [])
+            
+            # Check if any session has this username
+            for session in sessions:
+                if session.get("username") == username:
+                    return True
+            
+            return False
+        except urllib.error.URLError:
+            # Can't connect to GitHub - warn user but allow
+            messagebox.showwarning(
+                "Connection Error",
+                "Cannot check if username is taken (no internet connection).\n"
+                "You can continue, but your username might already be taken."
+            )
+            return False
+        except Exception as e:
+            # Other error - warn user but allow
+            messagebox.showwarning(
+                "Error",
+                f"Cannot check if username is taken: {e}\n"
+                "You can continue, but your username might already be taken."
+            )
+            return False
+
+    def _save_session(self):
+        """Save session data to local file."""
+        if not self.session_start_time or self.accept_count == 0:
+            return
+        
+        session_data = {
+            "username": self.username,
+            "timestamp": datetime.now().isoformat(),
+            "accepts": self.accept_count,
+            "duration_seconds": time.time() - self.session_start_time,
+            "accepts_per_minute": (self.accept_count / (time.time() - self.session_start_time)) * 60 if self.session_start_time else 0
+        }
+        
+        # Load existing data
+        if os.path.exists(DATA_FILE):
+            try:
+                with open(DATA_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    sessions = data.get("sessions", [])
+            except Exception:
+                sessions = []
+        else:
+            sessions = []
+        
+        # Add new session
+        sessions.append(session_data)
+        
+        # Save back
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump({"sessions": sessions}, f, indent=2)
+
+    def _prompt_submit_leaderboard(self):
+        """Prompt user to submit their session data to GitHub."""
+        if self.github_token:
+            # Automatic submission via GitHub API
+            result = messagebox.askyesno(
+                "Submit to Leaderboard",
+                "Do you want to submit your session to the global leaderboard?\n\n"
+                "This will automatically submit your data via GitHub API."
+            )
+            if result:
+                # Save the session locally first
+                self._save_session()
+                # Then submit via GitHub API
+                self._submit_to_github_api()
+        else:
+            # Manual submission via GitHub Issues
+            result = messagebox.askyesno(
+                "Submit to Leaderboard",
+                "Do you want to submit your session to the global leaderboard?\n\n"
+                "This will open a GitHub Issue where you can create your data."
+            )
+            if result:
+                # Save the session locally first
+                self._save_session()
+                # Then open GitHub Issues
+                self._submit_to_github()
+
+    def _submit_to_github_api(self):
+        """Submit session data to GitHub via API."""
+        try:
+            # Load the latest session data
+            if not os.path.exists(DATA_FILE):
+                messagebox.showerror("Error", "No session data found to submit.")
+                return
+
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                local_data = json.load(f)
+            local_sessions = local_data.get("sessions", [])
+            
+            if not local_sessions:
+                messagebox.showerror("Error", "No session data found to submit.")
+                return
+
+            # Get the most recent session
+            latest_session = local_sessions[-1]
+
+            # Fetch current data from GitHub
+            request = urllib.request.Request(
+                LEADERBOARD_GITHUB_URL,
+                headers={"Authorization": f"token {self.github_token}"}
+            )
+            response = urllib.request.urlopen(request)
+            remote_data = json.loads(response.read().decode('utf-8'))
+            remote_sessions = remote_data.get("sessions", [])
+
+            # Check if session already exists (by timestamp)
+            if any(s.get("timestamp") == latest_session.get("timestamp") for s in remote_sessions):
+                messagebox.showinfo("Info", "This session is already on the leaderboard.")
+                return
+
+            # Add new session
+            remote_sessions.append(latest_session)
+            remote_data["sessions"] = remote_sessions
+
+            # Get the SHA of the current file (needed for updating)
+            api_url = "https://api.github.com/repos/kobel-studios/Kobel-vibecode-helper/contents/leaderboard_data.json"
+            request = urllib.request.Request(
+                api_url,
+                headers={"Authorization": f"token {self.github_token}"}
+            )
+            response = urllib.request.urlopen(request)
+            file_info = json.loads(response.read().decode('utf-8'))
+            sha = file_info.get("sha")
+
+            # Update the file via GitHub API
+            updated_content = json.dumps(remote_data, indent=2)
+            encoded_content = base64.b64encode(updated_content.encode('utf-8')).decode('utf-8')
+
+            put_data = {
+                "message": f"Add session from {self.username}",
+                "content": encoded_content,
+                "sha": sha
+            }
+
+            request = urllib.request.Request(
+                api_url,
+                data=json.dumps(put_data).encode('utf-8'),
+                headers={
+                    "Authorization": f"token {self.github_token}",
+                    "Content-Type": "application/json"
+                },
+                method="PUT"
+            )
+            response = urllib.request.urlopen(request)
+
+            messagebox.showinfo("Success", "Your session has been successfully submitted to the leaderboard!")
+
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                messagebox.showerror("Error", "Invalid GitHub token. Please check your token and try again.")
+            elif e.code == 403:
+                messagebox.showerror("Error", "GitHub token doesn't have permission to modify the repository. Please ensure your token has 'repo' scope.")
+            elif e.code == 404:
+                messagebox.showerror("Error", "Repository or file not found. Please check the GitHub URL.")
+            else:
+                messagebox.showerror("Error", f"GitHub API error: {e.code} - {e.reason}")
+        except urllib.error.URLError as e:
+            messagebox.showerror("Error", f"Failed to connect to GitHub: {e}\n\nCheck your internet connection.")
+        except Exception as e:
+            messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+
+    def _submit_to_github(self):
+        """Open GitHub Issues with pre-filled leaderboard data."""
+        try:
+            if not os.path.exists(DATA_FILE):
+                messagebox.showerror("Error", "No session data found to submit.")
+                return
+
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                sessions = data.get("sessions", [])
+            
+            if not sessions:
+                messagebox.showerror("Error", "No session data found to submit.")
+                return
+
+            latest_session = sessions[-1]
+            
+            # Format the data for GitHub Issues
+            issue_title = f"Leaderboard Submission: {self.username}"
+            issue_body = f"""Username: {self.username}
+Timestamp: {latest_session.get('timestamp')}
+Accepts: {latest_session.get('accepts')}
+Duration: {latest_session.get('duration_seconds', 0):.2f} seconds
+Accepts per minute: {latest_session.get('accepts_per_minute', 0):.2f}
+
+Please add this session to the leaderboard_data.json file."""
+
+            # URL encode the body
+            encoded_body = urllib.parse.quote(issue_body)
+            
+            # Open GitHub Issues
+            issue_url = f"https://github.com/kobel-studios/Kobel-vibecode-helper/issues/new?title={urllib.parse.quote(issue_title)}&body={encoded_body}"
+            webbrowser.open(issue_url)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open GitHub Issues: {e}")
+
+    def _view_leaderboard(self):
+        """Display the leaderboard in a new window."""
+        try:
+            # Fetch leaderboard data from GitHub
+            response = urllib.request.urlopen(LEADERBOARD_GITHUB_URL)
+            data = json.loads(response.read().decode('utf-8'))
+            sessions = data.get("sessions", [])
+            
+            if not sessions:
+                messagebox.showinfo("Leaderboard", "No leaderboard data available yet.")
+                return
+            
+            # Sort by accepts per minute (descending)
+            sessions.sort(key=lambda x: x.get('accepts_per_minute', 0), reverse=True)
+            
+            # Create leaderboard window
+            leaderboard_window = tk.Toplevel(self.root)
+            leaderboard_window.title("Leaderboard")
+            leaderboard_window.geometry("600x500")
+            leaderboard_window.configure(bg=BG)
+            leaderboard_window.transient(self.root)
+            
+            # Title
+            title = tk.Label(
+                leaderboard_window,
+                text="Global Leaderboard - Accepts per Minute",
+                fg=FG,
+                bg=BG,
+                font=("Segoe UI", 14, "bold")
+            )
+            title.pack(pady=20)
+            
+            # Create treeview for leaderboard
+            tree = ttk.Treeview(leaderboard_window, columns=("rank", "username", "accepts", "apm"), show="headings")
+            tree.heading("rank", text="Rank")
+            tree.heading("username", text="Username")
+            tree.heading("accepts", text="Accepts")
+            tree.heading("apm", text="Accepts/min")
+            
+            tree.column("rank", width=50, anchor="center")
+            tree.column("username", width=150, anchor="center")
+            tree.column("accepts", width=100, anchor="center")
+            tree.column("apm", width=100, anchor="center")
+            
+            tree.pack(fill="both", expand=True, padx=20, pady=10)
+            
+            # Add data
+            for i, session in enumerate(sessions[:20], 1):  # Top 20
+                tree.insert("", "end", values=(
+                    i,
+                    session.get("username", "Unknown"),
+                    session.get("accepts", 0),
+                    f"{session.get('accepts_per_minute', 0):.2f}"
+                ))
+            
+            # Close button
+            ttk.Button(leaderboard_window, text="Close", command=leaderboard_window.destroy).pack(pady=10)
+            
+            # Center window
+            leaderboard_window.update_idletasks()
+            x = (leaderboard_window.winfo_screenwidth() // 2) - (leaderboard_window.winfo_width() // 2)
+            y = (leaderboard_window.winfo_screenheight() // 2) - (leaderboard_window.winfo_height() // 2)
+            leaderboard_window.geometry(f"+{x}+{y}")
+            
+        except urllib.error.URLError:
+            messagebox.showerror("Error", "Failed to fetch leaderboard data. Check your internet connection.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load leaderboard: {e}")
 
 
 def main():

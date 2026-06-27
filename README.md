@@ -11,6 +11,11 @@ Automatically clicks "Accept All" for Vibe Coders coding on Windsurf.
 - Fail-safe protection (move mouse to screen corner to abort)
 - Tracks number of accepts performed
 - Mouse position restoration - returns cursor to original position after clicking
+- **Millisecond precision** for click intervals (competitive feature)
+- **Save/Load settings** - save your preferred configurations to JSON files
+- **Click statistics** - real-time session statistics including clicks per minute
+- **Global leaderboard** - compete with other users worldwide
+- **Automatic leaderboard submission** - submit your sessions via GitHub API or manual GitHub Issues
 
 ## Installation
 
@@ -33,9 +38,35 @@ Automatically clicks "Accept All" for Vibe Coders coding on Windsurf.
    python vibe_code_helper.py
    ```
 
-2. Press **F7** or click the button to start/stop the automation
-3. Adjust the check interval as needed
-4. Close the window to quit
+2. On first launch, you'll be asked if you want to participate in the global leaderboard
+3. If yes, enter a unique username and optionally provide a GitHub token for automatic submission
+4. Press **F7** or click the button to start/stop the automation
+5. Adjust the check interval (in milliseconds) as needed
+6. Use "Save Settings" to save your configuration to a JSON file
+7. Use "Load Settings" to load a previously saved configuration
+8. Monitor real-time statistics including clicks per minute
+9. Click "View Leaderboard" to see the global rankings
+10. When you stop a session, you'll be prompted to submit your results to the leaderboard
+11. Close the window to quit
+
+## Leaderboard
+
+The global leaderboard tracks accepts per minute from all users worldwide. 
+
+**Automatic Submission (Recommended):**
+- Provide a GitHub token during setup for automatic submission
+- Your sessions are submitted directly to the leaderboard via GitHub API
+- Requires a GitHub token with 'repo' scope (you create this yourself)
+
+**Manual Submission:**
+- If you don't provide a token, you can submit via GitHub Issues
+- The app will open a pre-filled GitHub Issue with your session data
+- Your data will be added to the leaderboard manually
+
+**Viewing the Leaderboard:**
+- Click "View Leaderboard" in the app to see the top 20 users
+- Leaderboard is sorted by accepts per minute (descending)
+- Data is fetched from GitHub in real-time
 
 ## How It Works
 
