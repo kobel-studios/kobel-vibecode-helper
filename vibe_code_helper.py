@@ -147,34 +147,46 @@ class VibeCodeHelper:
         ttk.Button(settings_frame, text="Save Settings", command=self._save_settings, width=12).pack(side="left", padx=2)
         ttk.Button(settings_frame, text="Load Settings", command=self._load_settings, width=12).pack(side="left", padx=2)
 
+        # Settings instructions
+        settings_info_frame = ttk.LabelFrame(container, text="Settings", padding=12)
+        settings_info_frame.grid(row=4, column=0, columnspan=2, sticky="ew", **pad)
+
+        settings_text = (
+            "• Save Settings: Save your current interval to a file\n"
+            "• Load Settings: Load a previously saved interval\n"
+            "• Useful for switching between different presets"
+        )
+        ttk.Label(settings_info_frame, text=settings_text, foreground=ACCENT, justify="left").pack()
+
         # Count
         self.count_var = tk.StringVar(value="Accepts performed: 0")
-        ttk.Label(container, textvariable=self.count_var, foreground=MUTED).grid(row=4, column=0, columnspan=2, pady=(0, 4))
+        ttk.Label(container, textvariable=self.count_var, foreground=MUTED).grid(row=5, column=0, columnspan=2, pady=(0, 4))
         
         # Statistics (only visible when running)
         self.stats_var = tk.StringVar(value="")
         self.stats_label = ttk.Label(container, textvariable=self.stats_var, foreground=MUTED, font=("Segoe UI", 9))
-        self.stats_label.grid(row=5, column=0, columnspan=2, pady=(0, 8))
+        self.stats_label.grid(row=6, column=0, columnspan=2, pady=(0, 8))
         self.stats_label.grid_remove()  # Hide initially
 
         # Setup instructions
         setup_frame = ttk.LabelFrame(container, text="Setup Instructions", padding=12)
-        setup_frame.grid(row=6, column=0, columnspan=2, sticky="ew", **pad)
+        setup_frame.grid(row=7, column=0, columnspan=2, sticky="ew", **pad)
 
         setup_text = (
-            "• Place accept_all_button.png in this folder\n"
-            "• Screenshot of the Accept All button from Windsurf\n"
-            "• The script will auto-detect and use it"
+            "• Take a screenshot of the Accept All button from Windsurf\n"
+            "• Save it as accept_all_button.png in this folder\n"
+            "• The script will auto-detect and use it\n"
+            "• You only need to do this once unless you want to update it"
         )
         ttk.Label(setup_frame, text=setup_text, foreground=ACCENT, justify="left").pack()
 
         # Controls
         self.toggle_button = ttk.Button(container, text="Start (F7)", command=self._toggle)
-        self.toggle_button.grid(row=7, column=0, columnspan=2, sticky="ew", padx=6, pady=(6, 2))
+        self.toggle_button.grid(row=8, column=0, columnspan=2, sticky="ew", padx=6, pady=(6, 2))
 
         # Settings buttons
         settings_frame = ttk.Frame(container)
-        settings_frame.grid(row=8, column=0, columnspan=2, pady=(6, 0))
+        settings_frame.grid(row=9, column=0, columnspan=2, pady=(6, 0))
         
         ttk.Button(settings_frame, text="Test Accept", command=self._test_accept, width=12).pack(side="left", padx=2)
 
@@ -185,11 +197,11 @@ class VibeCodeHelper:
             foreground=MUTED,
             justify="center",
         )
-        hint.grid(row=9, column=0, columnspan=2, pady=(8, 0))
+        hint.grid(row=10, column=0, columnspan=2, pady=(8, 0))
         
         # Leaderboard and tools buttons
         tools_frame = ttk.Frame(container)
-        tools_frame.grid(row=10, column=0, columnspan=2, pady=(6, 0))
+        tools_frame.grid(row=11, column=0, columnspan=2, pady=(6, 0))
         
         ttk.Button(tools_frame, text="Leaderboard", command=self._view_leaderboard, width=12).pack(side="left", padx=2)
         ttk.Button(tools_frame, text="View Graph", command=self._view_graph, width=12).pack(side="left", padx=2)
