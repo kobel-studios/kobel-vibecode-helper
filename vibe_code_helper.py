@@ -153,8 +153,7 @@ class VibeCodeHelper:
 
         settings_text = (
             "• Save Settings: Save your current interval to a file\n"
-            "• Load Settings: Load a previously saved interval\n"
-            "• Useful for switching between different presets"
+            "• Load Settings: Load a previously saved interval"
         )
         ttk.Label(settings_info_frame, text=settings_text, foreground=ACCENT, justify="left").pack()
 
