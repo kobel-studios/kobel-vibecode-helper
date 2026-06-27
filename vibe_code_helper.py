@@ -185,7 +185,7 @@ class VibeCodeHelper:
         tools_frame = ttk.Frame(container)
         tools_frame.grid(row=9, column=0, columnspan=2, pady=(6, 0))
         
-        ttk.Button(tools_frame, text="View Leaderboard", command=self._view_leaderboard, width=12).pack(side="left", padx=2)
+        ttk.Button(tools_frame, text="Leaderboard", command=self._view_leaderboard, width=12).pack(side="left", padx=2)
         ttk.Button(tools_frame, text="View Graph", command=self._view_graph, width=12).pack(side="left", padx=2)
         ttk.Button(tools_frame, text="Test Accept", command=self._test_accept, width=12).pack(side="left", padx=2)
 
@@ -881,8 +881,14 @@ Please add this session to the leaderboard_data.json file."""
                     f"{session.get('accepts_per_minute', 0):.2f}"
                 ))
             
+            # Button frame
+            button_frame = ttk.Frame(leaderboard_window)
+            button_frame.pack(pady=10)
+            
+            # Refresh button
+            ttk.Button(button_frame, text="Refresh", command=lambda: self._refresh_leaderboard(leaderboard_window, tree)).pack(side="left", padx=5)
             # Close button
-            ttk.Button(leaderboard_window, text="Close", command=leaderboard_window.destroy).pack(pady=10)
+            ttk.Button(button_frame, text="Close", command=leaderboard_window.destroy).pack(side="left", padx=5)
             
             # Center window
             leaderboard_window.update_idletasks()
@@ -894,6 +900,48 @@ Please add this session to the leaderboard_data.json file."""
             messagebox.showerror("Error", "Failed to fetch leaderboard data. Check your internet connection.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load leaderboard: {e}")
+
+    def _refresh_leaderboard(self, window, tree):
+        """Refresh the leaderboard data."""
+        try:
+            # Clear existing data
+            for item in tree.get_children():
+                tree.delete(item)
+            
+            # Fetch leaderboard data from GitHub API
+            response = urllib.request.urlopen(LEADERBOARD_GITHUB_URL)
+            file_data = json.loads(response.read().decode('utf-8'))
+            
+            # Decode base64 content
+            content = file_data.get("content", "")
+            if content:
+                decoded_content = base64.b64decode(content).decode('utf-8')
+                data = json.loads(decoded_content)
+            else:
+                data = {"sessions": []}
+            
+            sessions = data.get("sessions", [])
+            
+            if not sessions:
+                messagebox.showinfo("Leaderboard", "No leaderboard data available yet.")
+                return
+            
+            # Sort by accepts per minute (descending)
+            sessions.sort(key=lambda x: x.get('accepts_per_minute', 0), reverse=True)
+            
+            # Add data
+            for i, session in enumerate(sessions[:20], 1):  # Top 20
+                tree.insert("", "end", values=(
+                    i,
+                    session.get("username", "Unknown"),
+                    session.get("accepts", 0),
+                    f"{session.get('accepts_per_minute', 0):.2f}"
+                ))
+            
+        except urllib.error.URLError:
+            messagebox.showerror("Error", "Failed to fetch leaderboard data. Check your internet connection.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to refresh leaderboard: {e}")
 
     def _view_graph(self):
         """Display the accepts per minute graph in a new window."""
