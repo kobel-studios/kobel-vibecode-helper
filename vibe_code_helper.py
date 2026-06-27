@@ -234,7 +234,7 @@ class VibeCodeHelper:
 
         self.running = True
         self.stop_flag.clear()
-        self.accept_count = 0
+        # Don't reset accept_count - let it persist across sessions
         self.session_start_time = time.time()
         self.accept_rate_history.clear()
         self.worker = threading.Thread(target=self._accept_loop, args=(interval,), daemon=True)
