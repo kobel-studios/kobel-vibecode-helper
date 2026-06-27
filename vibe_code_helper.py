@@ -169,8 +169,6 @@ class VibeCodeHelper:
         settings_frame = ttk.Frame(container)
         settings_frame.grid(row=7, column=0, columnspan=2, pady=(6, 0))
         
-        ttk.Button(settings_frame, text="Save Settings", command=self._save_settings, width=12).pack(side="left", padx=2)
-        ttk.Button(settings_frame, text="Load Settings", command=self._load_settings, width=12).pack(side="left", padx=2)
         ttk.Button(settings_frame, text="Test Accept", command=self._test_accept, width=12).pack(side="left", padx=2)
 
         hint = ttk.Label(
