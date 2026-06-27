@@ -11,7 +11,13 @@ import urllib.error
 import webbrowser
 import base64
 from datetime import datetime
+from collections import deque
 from PIL import Image, ImageTk
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+matplotlib.use("TkAgg")
 
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE = 0.1
@@ -56,6 +62,9 @@ class VibeCodeHelper:
         self.accept_count = 0
         self.session_start_time = None
         self.total_clicks = 0
+        
+        # Graph data
+        self.accept_rate_history = deque(maxlen=60)  # Store last 60 data points
         
         # Leaderboard configuration
         self.username = None
@@ -167,8 +176,13 @@ class VibeCodeHelper:
         )
         hint.grid(row=8, column=0, columnspan=2, pady=(8, 0))
         
-        # Leaderboard button
-        ttk.Button(container, text="View Leaderboard", command=self._view_leaderboard).grid(row=9, column=0, columnspan=2, pady=(6, 0))
+        # Leaderboard and tools buttons
+        tools_frame = ttk.Frame(container)
+        tools_frame.grid(row=9, column=0, columnspan=2, pady=(6, 0))
+        
+        ttk.Button(tools_frame, text="View Leaderboard", command=self._view_leaderboard, width=12).pack(side="left", padx=2)
+        ttk.Button(tools_frame, text="View Graph", command=self._view_graph, width=12).pack(side="left", padx=2)
+        ttk.Button(tools_frame, text="Test Accept", command=self._test_accept, width=12).pack(side="left", padx=2)
 
     def _on_background_click(self, event):
         """Remove focus from text boxes when clicking on window background."""
@@ -234,12 +248,28 @@ class VibeCodeHelper:
 
     def _accept_loop(self, interval):
         try:
+            last_update = time.time()
             while not self.stop_flag.is_set():
                 if self._click_accept_all():
                     self.accept_count += 1
                     self.total_clicks += 1
                     self.root.after(0, self._update_count, self.accept_count)
                     self.root.after(0, self._update_stats)
+                    
+                    # Record for graph
+                    current_time = time.time()
+                    if self.session_start_time:
+                        elapsed = current_time - self.session_start_time
+                        accepts_per_min = (self.accept_count / elapsed) * 60 if elapsed > 0 else 0
+                        self.accept_rate_history.append((elapsed, accepts_per_min))
+
+                # Update graph every second
+                current_time = time.time()
+                if current_time - last_update >= 1.0 and self.session_start_time:
+                    elapsed = current_time - self.session_start_time
+                    accepts_per_min = (self.accept_count / elapsed) * 60 if elapsed > 0 else 0
+                    self.accept_rate_history.append((elapsed, accepts_per_min))
+                    last_update = current_time
 
                 slept = 0.0
                 interval_seconds = interval / 1000.0  # Convert milliseconds to seconds
@@ -820,6 +850,118 @@ Please add this session to the leaderboard_data.json file."""
             messagebox.showerror("Error", "Failed to fetch leaderboard data. Check your internet connection.")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load leaderboard: {e}")
+
+    def _view_graph(self):
+        """Display the accepts per minute graph in a new window."""
+        if not self.accept_rate_history:
+            messagebox.showinfo("Graph", "No data available yet. Start a session to generate graph data.")
+            return
+        
+        # Create graph window
+        graph_window = tk.Toplevel(self.root)
+        graph_window.title("Accepts Per Minute Graph")
+        graph_window.geometry("800x600")
+        graph_window.configure(bg=BG)
+        graph_window.transient(self.root)
+        
+        # Create matplotlib figure with dark theme
+        plt.style.use('dark_background')
+        fig, ax = plt.subplots(figsize=(8, 6), facecolor=BG)
+        
+        # Extract data
+        times = [t[0] for t in self.accept_rate_history]
+        rates = [t[1] for t in self.accept_rate_history]
+        
+        # Plot
+        ax.plot(times, rates, color=ACCENT, linewidth=2)
+        ax.set_xlabel('Time (seconds)', color=FG)
+        ax.set_ylabel('Accepts per Minute', color=FG)
+        ax.set_title('Accepts Per Minute Over Time', color=FG, fontsize=14, fontweight='bold')
+        ax.tick_params(colors=FG)
+        ax.grid(True, alpha=0.3)
+        
+        # Embed in tkinter
+        canvas = FigureCanvasTkAgg(fig, master=graph_window)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Close button
+        ttk.Button(graph_window, text="Close", command=graph_window.destroy).pack(pady=10)
+        
+        # Center window
+        graph_window.update_idletasks()
+        x = (graph_window.winfo_screenwidth() // 2) - (graph_window.winfo_width() // 2)
+        y = (graph_window.winfo_screenheight() // 2) - (graph_window.winfo_height() // 2)
+        graph_window.geometry(f"+{x}+{y}")
+
+    def _test_accept(self):
+        """Open a test window with an Accept All button to test the clicker."""
+        test_window = tk.Toplevel(self.root)
+        test_window.title("Accept Button Tester")
+        test_window.geometry("400x300")
+        test_window.configure(bg=BG)
+        test_window.transient(self.root)
+        
+        # Title
+        title = tk.Label(
+            test_window,
+            text="Accept Button Tester",
+            fg=FG,
+            bg=BG,
+            font=("Segoe UI", 14, "bold")
+        )
+        title.pack(pady=20)
+        
+        # Instructions
+        instructions = tk.Label(
+            test_window,
+            text="Click the Accept All button below to test\nif the clicker is working properly.",
+            fg=MUTED,
+            bg=BG,
+            font=("Segoe UI", 10),
+            justify="center"
+        )
+        instructions.pack(pady=10)
+        
+        # Accept All button (styled to look like Windsurf's button)
+        accept_button = tk.Button(
+            test_window,
+            text="Accept All",
+            bg=ACCENT,
+            fg="white",
+            font=("Segoe UI", 12, "bold"),
+            relief="flat",
+            padx=30,
+            pady=10,
+            cursor="hand2",
+            command=lambda: self._on_test_accept_click(test_window)
+        )
+        accept_button.pack(pady=20)
+        
+        # Click counter
+        test_window.test_clicks = 0
+        test_window.clicks_label = tk.Label(
+            test_window,
+            text="Clicks detected: 0",
+            fg=ACCENT,
+            bg=BG,
+            font=("Segoe UI", 12, "bold")
+        )
+        test_window.clicks_label.pack(pady=10)
+        
+        # Close button
+        ttk.Button(test_window, text="Close", command=test_window.destroy).pack(pady=10)
+        
+        # Center window
+        test_window.update_idletasks()
+        x = (test_window.winfo_screenwidth() // 2) - (test_window.winfo_width() // 2)
+        y = (test_window.winfo_screenheight() // 2) - (test_window.winfo_height() // 2)
+        test_window.geometry(f"+{x}+{y}")
+
+    def _on_test_accept_click(self, window):
+        """Handle test button click."""
+        window.test_clicks += 1
+        window.clicks_label.config(text=f"Clicks detected: {window.test_clicks}")
 
 
 def main():

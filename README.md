@@ -16,6 +16,8 @@ Automatically clicks "Accept All" for Vibe Coders coding on Windsurf.
 - **Click statistics** - real-time session statistics including clicks per minute
 - **Global leaderboard** - compete with other users worldwide
 - **Automatic leaderboard submission** - submit your sessions via GitHub API or manual GitHub Issues
+- **Accepts per minute graph** - visualize your performance over time with matplotlib
+- **Accept button tester** - test if the clicker is working with a simulated Accept All button
 
 ## Installation
 
