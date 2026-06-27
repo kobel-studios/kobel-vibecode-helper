@@ -171,6 +171,7 @@ class VibeCodeHelper:
         
         ttk.Button(settings_frame, text="Save Settings", command=self._save_settings, width=12).pack(side="left", padx=2)
         ttk.Button(settings_frame, text="Load Settings", command=self._load_settings, width=12).pack(side="left", padx=2)
+        ttk.Button(settings_frame, text="Test Accept", command=self._test_accept, width=12).pack(side="left", padx=2)
 
         hint = ttk.Label(
             container,
@@ -187,7 +188,6 @@ class VibeCodeHelper:
         
         ttk.Button(tools_frame, text="Leaderboard", command=self._view_leaderboard, width=12).pack(side="left", padx=2)
         ttk.Button(tools_frame, text="View Graph", command=self._view_graph, width=12).pack(side="left", padx=2)
-        ttk.Button(tools_frame, text="Test Accept", command=self._test_accept, width=12).pack(side="left", padx=2)
 
     def _on_background_click(self, event):
         """Remove focus from text boxes when clicking on window background."""
@@ -844,7 +844,7 @@ Please add this session to the leaderboard_data.json file."""
             # Create leaderboard window
             leaderboard_window = tk.Toplevel(self.root)
             leaderboard_window.title("Leaderboard")
-            leaderboard_window.geometry("600x500")
+            leaderboard_window.geometry("700x500")
             leaderboard_window.configure(bg=BG)
             leaderboard_window.transient(self.root)
             
@@ -885,8 +885,8 @@ Please add this session to the leaderboard_data.json file."""
             button_frame = ttk.Frame(leaderboard_window)
             button_frame.pack(pady=10)
             
-            # Refresh button
-            ttk.Button(button_frame, text="Refresh", command=lambda: self._refresh_leaderboard(leaderboard_window, tree)).pack(side="left", padx=5)
+            # Update button
+            ttk.Button(button_frame, text="Update", command=lambda: self._refresh_leaderboard(leaderboard_window, tree)).pack(side="left", padx=5)
             # Close button
             ttk.Button(button_frame, text="Close", command=leaderboard_window.destroy).pack(side="left", padx=5)
             
