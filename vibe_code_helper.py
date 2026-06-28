@@ -80,6 +80,16 @@ class VibeCodeHelper:
         self._apply_dark_theme()
         self._build_ui()
 
+        # Center window on screen
+        self.root.update_idletasks()
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        window_width = self.root.winfo_reqwidth()
+        window_height = self.root.winfo_reqheight()
+        x_position = (screen_width - window_width) // 2
+        y_position = (screen_height - window_height) // 2
+        self.root.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}")
+
         keyboard.add_hotkey(HOTKEY, self._hotkey_pressed)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         # Bind click handler to entire window to remove focus from text boxes
