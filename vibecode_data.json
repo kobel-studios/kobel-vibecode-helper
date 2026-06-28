@@ -13,6 +13,13 @@
       "accepts": 3,
       "duration_seconds": 59.1599817276001,
       "accepts_per_minute": 3.0425972886334414
+    },
+    {
+      "username": "kobel-creator",
+      "timestamp": "2026-06-27T16:58:34.146177",
+      "accepts": 1,
+      "duration_seconds": 42.89305782318115,
+      "accepts_per_minute": 1.3988277601317003
     }
   ]
 }
